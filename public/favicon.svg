@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <circle cx="50" cy="50" r="48" fill="#0a0c10" stroke="#d93829" stroke-width="4"/>
+  <text x="50" y="66" font-size="50" font-family="serif" font-weight="bold" fill="#f5a623" text-anchor="middle">风</text>
+</svg>

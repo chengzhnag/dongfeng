@@ -1,0 +1,191 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;600;700;900&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --font-serif: 'Noto Serif SC', 'Source Han Serif SC', 'STSong', serif;
+  --font-sans: 'Noto Sans SC', system-ui, -apple-system, sans-serif;
+  
+  --color-bg-dark: #0a0c10;
+  --color-bg-paper: #12151e;
+  --color-ink-black: #060709;
+  --color-xuan-white: #f4f0ea;
+  --color-xuan-muted: #a3a8b5;
+  --color-dongfeng-red: #d93829;
+  --color-dongfeng-glow: #e63946;
+  --color-gold: #f5a623;
+  --color-gold-bright: #ffd700;
+  --color-bamboo: #2a9d8f;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-bg-dark);
+  color: var(--color-xuan-white);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-serif-cn {
+  font-family: var(--font-serif);
+}
+
+/* Xuan Paper Grain & Atmospheric Mesh */
+.bg-paper-texture {
+  background-color: var(--color-bg-dark);
+  background-image: 
+    radial-gradient(at 20% 20%, rgba(217, 56, 41, 0.08) 0px, transparent 50%),
+    radial-gradient(at 80% 80%, rgba(245, 166, 35, 0.06) 0px, transparent 50%),
+    radial-gradient(at 50% 50%, rgba(42, 157, 143, 0.05) 0px, transparent 60%);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0d0f14;
+}
+::-webkit-scrollbar-thumb {
+  background: #232836;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #d93829;
+}
+
+/* Frosted Glass */
+.glass-panel {
+  background: rgba(18, 21, 30, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-panel-gold {
+  background: rgba(245, 166, 35, 0.05);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(245, 166, 35, 0.25);
+  box-shadow: 0 0 30px rgba(245, 166, 35, 0.1);
+}
+
+.glass-card {
+  background: rgba(22, 26, 38, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-card:hover {
+  border-color: rgba(217, 56, 41, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px -10px rgba(217, 56, 41, 0.2);
+}
+
+/* Chinese Seal Stamp Effect */
+.seal-stamp {
+  border: 2px solid var(--color-dongfeng-red);
+  color: var(--color-dongfeng-red);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: var(--font-serif);
+  font-weight: bold;
+  letter-spacing: 2px;
+  display: inline-block;
+  box-shadow: 0 0 10px rgba(217, 56, 41, 0.3);
+  transform: rotate(-3deg);
+}
+
+/* Title Character Stroke Glow */
+.title-glow {
+  text-shadow: 0 0 20px rgba(217, 56, 41, 0.4), 0 0 40px rgba(245, 166, 35, 0.2);
+}
+
+.winner-glow {
+  text-shadow: 0 0 25px rgba(255, 215, 0, 0.8), 0 0 50px rgba(217, 56, 41, 0.5);
+}
+
+/* Golden Pulsing Halo */
+@keyframes goldPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.6), 0 0 20px rgba(217, 56, 41, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 25px rgba(255, 215, 0, 0), 0 0 40px rgba(217, 56, 41, 0.8);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 215, 0, 0), 0 0 20px rgba(217, 56, 41, 0.4);
+  }
+}
+
+.animate-gold-pulse {
+  animation: goldPulse 2s infinite cubic-bezier(0.66, 0, 0, 1);
+}
+
+/* Wind Gust Motion */
+@keyframes windSweep {
+  0% {
+    transform: translateX(-100%) skewX(-15deg);
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.3;
+  }
+  100% {
+    transform: translateX(100%) skewX(-15deg);
+    opacity: 0;
+  }
+}
+
+.wind-sweep-effect {
+  position: relative;
+  overflow: hidden;
+}
+
+.wind-sweep-effect::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+  transform: translateX(-100%);
+}
+
+.wind-sweep-effect:hover::after {
+  animation: windSweep 1s ease-out;
+}
+
+/* Staggered card animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Button & Touch target */
+.btn-touch {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

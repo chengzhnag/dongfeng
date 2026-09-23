@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>东风 - 遇事不决，可问东风</title>
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+  <meta name="description" content="一个帮人做决定的高仪式感工具站。结合 D3 风场粒子动效与 CSPRNG 真随机验真算法，遇事不决，可问东风。">
+  <link rel="stylesheet" href="./styles.css">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            dongfeng: {
+              red: '#d93829',
+              glow: '#e63946',
+              gold: '#f5a623',
+              bamboo: '#2a9d8f',
+              dark: '#0a0c10',
+              card: '#12151e',
+              paper: '#f4f0ea'
+            }
+          },
+          fontFamily: {
+            serif: ['Noto Serif SC', 'Source Han Serif SC', 'STSong', 'serif'],
+            sans: ['Noto Sans SC', 'system-ui', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Import map for React, Lucide, D3, Confetti -->
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.3.1",
+      "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
+      "react-dom": "https://esm.sh/react-dom@18.3.1",
+      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+      "lucide-react": "https://esm.sh/lucide-react@0.400.0?external=react,react-dom",
+      "d3": "https://esm.sh/d3@7.9.0",
+      "canvas-confetti": "https://esm.sh/canvas-confetti@1.9.4"
+    }
+  }
+  </script>
+
+  <!-- Babel Standalone for React JSX support in browser -->
+  <script src="https://unpkg.com/@babel/standalone@7.24.0/babel.min.js"></script>
+</head>
+<body class="bg-paper-texture min-h-screen text-slate-100 selection:bg-red-900 selection:text-red-100">
+  <div id="root">
+    <!-- Initial Loading State before React Hydration -->
+    <div class="fixed inset-0 flex flex-col items-center justify-center bg-[#0a0c10] text-slate-300">
+      <div class="relative flex items-center justify-center">
+        <div class="w-16 h-16 border-2 border-red-600/30 border-t-red-600 rounded-full animate-spin"></div>
+        <span class="absolute text-xl font-serif text-amber-500 font-bold">风</span>
+      </div>
+      <p class="mt-6 font-serif tracking-widest text-slate-400 animate-pulse">东风唤起中，请稍候...</p>
+    </div>
+  </div>
+
+  <script type="text/babel" data-type="module" data-presets="react" src="./app.jsx"></script>
+</body>
+</html>
