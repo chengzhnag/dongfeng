@@ -1,4 +1,5 @@
-const PBKDF2_ITERATIONS = 310000;
+// Cloudflare Workers Web Crypto currently rejects iteration counts above 100000.
+const PBKDF2_ITERATIONS = 100000;
 
 export async function generateVerificationHash(seed: string, title: string, winnerId: string, optionsJson: string): Promise<string> {
   const data = new TextEncoder().encode(`DONGFENG_VERIFY::${seed}::${title}::${winnerId}::${optionsJson}`);
@@ -41,7 +42,7 @@ export async function hashPassword(password: string): Promise<string> {
 export async function verifyPassword(password: string, encoded: string): Promise<boolean> {
   const [algorithm, iterationsText, saltText, hashText] = encoded.split("$");
   const iterations = Number(iterationsText);
-  if (algorithm !== "pbkdf2" || !Number.isInteger(iterations) || iterations < 1 || !saltText || !hashText) return false;
+  if (algorithm !== "pbkdf2" || !Number.isInteger(iterations) || iterations < 1 || iterations > PBKDF2_ITERATIONS || !saltText || !hashText) return false;
 
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
   const salt = base64UrlDecode(saltText);

@@ -175,8 +175,14 @@ export class App extends DurableObject {
         if (!username || !email || !password || typeof username !== "string" || typeof email !== "string" || typeof password !== "string") {
           return c.json({ ok: false, error: "请填写完整的注册信息" }, 400);
         }
-        if (username.length > 32 || email.length > 254 || password.length < 10 || password.length > 128) {
-          return c.json({ ok: false, error: "注册信息格式不正确" }, 400);
+        if (username.length > 32) {
+          return c.json({ ok: false, error: "用户名不能超过 32 个字符" }, 400);
+        }
+        if (email.length > 254) {
+          return c.json({ ok: false, error: "邮箱格式不正确" }, 400);
+        }
+        if (password.length < 6 || password.length > 20) {
+          return c.json({ ok: false, error: "密码长度需为 6 至 20 个字符" }, 400);
         }
 
         const existing = this.ctx.storage.sql.exec(

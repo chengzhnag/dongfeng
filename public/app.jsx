@@ -1292,10 +1292,20 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, avatars }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
+
+    if (tab === 'register') {
+      const normalizedEmail = email.trim();
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailPattern.test(normalizedEmail)) {
+        setError('请输入有效的邮箱地址');
+        return;
+      }
+    }
+
     setLoading(true);
 
     const endpoint = tab === 'login' ? './api/auth/login' : './api/auth/register';
-    const payload = tab === 'login' ? { username, password } : { username, email, password, avatar: selectedAvatar };
+    const payload = tab === 'login' ? { username, password } : { username, email: email.trim(), password, avatar: selectedAvatar };
 
     apiFetch(endpoint, {
       method: 'POST',
@@ -1369,11 +1379,16 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, avatars }) => {
             <input
               type="password"
               required
+              minLength={tab === 'register' ? 6 : undefined}
+              maxLength={tab === 'register' ? 20 : 128}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="请输入密码"
+              placeholder={tab === 'register' ? '请输入 6 至 20 位密码' : '请输入密码'}
               className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 focus:border-amber-500 outline-none text-slate-200"
             />
+            {tab === 'register' && (
+              <p className="mt-1 text-[11px] text-slate-500">密码长度需为 6 至 20 个字符</p>
+            )}
           </div>
 
           {tab === 'register' && (
@@ -1678,6 +1693,9 @@ function App() {
   const [publicLoading, setPublicLoading] = useState(false);
   const [publicLoadingMore, setPublicLoadingMore] = useState(false);
   const publicSentinelRef = useRef(null);
+  const [likedDecisionIds, setLikedDecisionIds] = useState(() => new Set());
+  const [likingDecisionId, setLikingDecisionId] = useState(null);
+  const [animatedLikeId, setAnimatedLikeId] = useState(null);
 
   // Debounce Tag Filter (350ms delay)
   useEffect(() => {
@@ -1929,16 +1947,29 @@ function App() {
 
   // Handle Like - Update local item state to preserve scroll position
   const handleLikeDecision = (id) => {
+    if (likingDecisionId === id) return;
+    setLikingDecisionId(id);
+    setAnimatedLikeId(id);
     apiFetch(`./api/decisions/${id}/like`, {
       method: 'POST',
     })
       .then(data => {
+        setLikedDecisionIds(prev => {
+          const next = new Set(prev);
+          if (data.liked) next.add(id);
+          else next.delete(id);
+          return next;
+        });
         setPublicDecisions(prev => prev.map(item => {
           if (item.id === id) return { ...item, likes_count: data.likes_count };
           return item;
         }));
       })
-      .catch(err => alert(err.message || '点赞失败，请稍后重试'));
+      .catch(err => alert(err.message || '点赞失败，请稍后重试'))
+      .finally(() => {
+        setLikingDecisionId(null);
+        window.setTimeout(() => setAnimatedLikeId(current => current === id ? null : current), 450);
+      });
   };
 
   const handleTogglePublic = (id) => {
@@ -2437,9 +2468,22 @@ function App() {
                       <div className="flex items-center justify-between pt-3 border-t border-slate-800/60 text-xs mt-2">
                         <button
                           onClick={() => handleLikeDecision(item.id)}
-                          className="flex items-center space-x-1.5 text-slate-400 hover:text-red-400 transition-colors"
+                          disabled={likingDecisionId === item.id}
+                          aria-pressed={likedDecisionIds.has(item.id)}
+                          className={`like-button flex items-center space-x-1.5 transition-colors ${
+                            likedDecisionIds.has(item.id) ? 'is-liked text-red-400' : 'text-slate-400 hover:text-red-400'
+                          } ${animatedLikeId === item.id ? 'is-animating' : ''}`}
                         >
-                          <Heart className="w-3.5 h-3.5 text-red-500/80" />
+                          <span className="like-icon-wrap" aria-hidden="true">
+                            <Heart className="like-icon w-3.5 h-3.5" />
+                            {animatedLikeId === item.id && (
+                              <span className="like-burst">
+                                <i />
+                                <i />
+                                <i />
+                              </span>
+                            )}
+                          </span>
                           <span>{item.likes_count || 0}</span>
                         </button>
 
