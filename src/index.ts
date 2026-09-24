@@ -377,10 +377,11 @@ export class App extends DurableObject {
           return c.json({ ok: false, error: "请提供 2 至 12 个有效选项" }, 400);
         }
 
-        // Sanitize options
+        // Sanitize options and limits
+        const sanitizedTitle = body.title.trim().slice(0, 20);
         const sanitizedOptions = body.options.map((opt, idx) => ({
           id: opt.id || `opt_${idx + 1}`,
-          text: opt.text.trim() || `选项 ${idx + 1}`,
+          text: (opt.text.trim() || `选项 ${idx + 1}`).slice(0, 20),
           weight: Math.max(1, Math.min(10, Number(opt.weight) || 1))
         }));
 
@@ -389,7 +390,7 @@ export class App extends DurableObject {
         const seed = generateId("seed");
         const optionsJson = JSON.stringify(sanitizedOptions);
         const tagsJson = JSON.stringify(body.tags || []);
-        const verificationHash = await generateVerificationHash(seed, body.title.trim(), winner.id, optionsJson);
+        const verificationHash = await generateVerificationHash(seed, sanitizedTitle, winner.id, optionsJson);
         const decisionId = generateId("dec");
         const now = Date.now();
 
@@ -405,7 +406,7 @@ export class App extends DurableObject {
           body.guest_id || "guest_anon",
           body.guest_nickname || "听风客",
           body.guest_avatar || "🍃",
-          body.title.trim(),
+          sanitizedTitle,
           winner.id,
           winner.text,
           optionsJson,
@@ -421,7 +422,7 @@ export class App extends DurableObject {
           ok: true,
           decision: {
             id: decisionId,
-            title: body.title.trim(),
+            title: sanitizedTitle,
             winner: winner,
             options: sanitizedOptions,
             mode: body.mode || "roulette",
@@ -622,7 +623,7 @@ export default {
   async fetch(request: Request, env: any) {
     const url = new URL(request.url);
     const normalizedPath = url.pathname.replace(/\/+$/, "") || "/";
-    const seoPaths = ["/robots.txt", "/sitemap.xml", "/rss.xml"];
+    const seoPaths = ["/robots.txt", "/sitemap.xml"];
 
     if (url.pathname.startsWith("/api/") || seoPaths.includes(normalizedPath)) {
       const namespace = env.APP;

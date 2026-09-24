@@ -176,27 +176,27 @@ const PRESET_DECISIONS = [
     title: "本周末去哪里充能？",
     options: [
       { text: "郊外公园露营听风", weight: 2 },
-      { text: "图书馆与咖啡馆沉浸", weight: 2 },
+      { text: "图书馆咖啡馆沉浸", weight: 2 },
       { text: "约朋友打羽毛球", weight: 1 },
-      { text: "在家看经典电影深度放松", weight: 2 }
+      { text: "在家看经典电影", weight: 2 }
     ],
     tags: ["生活", "周末"]
   },
   {
     title: "A / B 两难抉择建议",
     options: [
-      { text: "方案 A：追求长期稳健", weight: 1 },
-      { text: "方案 B：拥抱变化与突破", weight: 1 }
+      { text: "追求长期稳健", weight: 1 },
+      { text: "拥抱变化与突破", weight: 1 }
     ],
     tags: ["抉择", "思考"]
   },
   {
-    title: "今天工作番茄钟优先做？",
+    title: "今天工作优先做？",
     options: [
       { text: "核心功能代码重构", weight: 3 },
-      { text: "编写设计文档与 API", weight: 2 },
-      { text: "清理待办 Bug 与日志", weight: 2 },
-      { text: "学习一项新技术点", weight: 1 }
+      { text: "编写设计文档", weight: 2 },
+      { text: "清理待办 Bug", weight: 2 },
+      { text: "学习一项新技术", weight: 1 }
     ],
     tags: ["职场", "效率"]
   }
@@ -582,7 +582,7 @@ const CeremonyRevealModal = ({ isOpen, decision, mode, onClose, onComplete }) =>
         if (timerId) clearTimeout(timerId);
       };
 
-    } else {
+    } else if (currentMode === 'tally') {
       // ==========================================
       // MODE 2: 🎋 竹签卜卦 (Eastern Bamboo Draw)
       // ==========================================
@@ -762,6 +762,301 @@ const CeremonyRevealModal = ({ isOpen, decision, mode, onClose, onComplete }) =>
         clearTimeout(scatterTimer);
         clearTimeout(revealTimer);
       };
+    } else {
+      // ==========================================
+      // MODE 3: 🧭 巽风罗盘 (Eastern Bagua Wind Compass)
+      // ==========================================
+      const centerX = width / 2;
+      const centerY = height / 2;
+
+      const g = svg.append('g')
+        .attr('transform', `translate(${centerX}, ${centerY})`);
+
+      // Outer Bagua Gua Ring
+      const outerGuaG = g.append('g').attr('class', 'outer-gua-ring');
+
+      outerGuaG.append('circle')
+        .attr('r', 205)
+        .attr('fill', 'none')
+        .attr('stroke', 'rgba(217, 56, 41, 0.4)')
+        .attr('stroke-width', 2)
+        .attr('stroke-dasharray', '12 8');
+
+      outerGuaG.append('circle')
+        .attr('r', 185)
+        .attr('fill', 'rgba(12, 10, 14, 0.88)')
+        .attr('stroke', 'rgba(245, 166, 35, 0.45)')
+        .attr('stroke-width', 1.5)
+        .style('filter', 'drop-shadow(0 0 25px rgba(217, 56, 41, 0.25))');
+
+      // 8 Bagua Trigrams & Names (乾 兑 离 震 巽 坎 艮 坤)
+      const baguaNames = [
+        { name: '☰ 乾', angle: 0 },
+        { name: '☱ 兑', angle: 45 },
+        { name: '☲ 离', angle: 90 },
+        { name: '☳ 震', angle: 135 },
+        { name: '☴ 巽', angle: 180 },
+        { name: '☵ 坎', angle: 225 },
+        { name: '☶ 艮', angle: 270 },
+        { name: '☷ 坤', angle: 315 }
+      ];
+
+      baguaNames.forEach(b => {
+        const rad = (b.angle - 90) * Math.PI / 180;
+        const bx = Math.cos(rad) * 194;
+        const by = Math.sin(rad) * 194;
+        outerGuaG.append('text')
+          .text(b.name)
+          .attr('x', bx)
+          .attr('y', by + 4)
+          .attr('text-anchor', 'middle')
+          .attr('fill', '#f5a623')
+          .attr('font-size', '12px')
+          .attr('font-weight', 'bold')
+          .attr('font-family', 'Noto Serif SC, serif');
+      });
+
+      // Middle Astrolabe Tick Ring
+      const middleRingG = g.append('g').attr('class', 'middle-tick-ring');
+      middleRingG.append('circle')
+        .attr('r', 160)
+        .attr('fill', 'none')
+        .attr('stroke', 'rgba(255, 215, 0, 0.35)')
+        .attr('stroke-width', 1)
+        .attr('stroke-dasharray', '4 4');
+
+      for (let a = 0; a < 360; a += 15) {
+        const rad = a * Math.PI / 180;
+        const x1 = Math.cos(rad) * 154;
+        const y1 = Math.sin(rad) * 154;
+        const x2 = Math.cos(rad) * 164;
+        const y2 = Math.sin(rad) * 164;
+        middleRingG.append('line')
+          .attr('x1', x1).attr('y1', y1)
+          .attr('x2', x2).attr('y2', y2)
+          .attr('stroke', a % 45 === 0 ? '#ffd700' : 'rgba(255,255,255,0.25)')
+          .attr('stroke-width', a % 45 === 0 ? 2 : 1);
+      }
+
+      // Inner Dark Center
+      const innerCenterG = g.append('g');
+      innerCenterG.append('circle')
+        .attr('r', 96)
+        .attr('fill', '#08070b')
+        .attr('stroke', '#d93829')
+        .attr('stroke-width', 2);
+
+      innerCenterG.append('circle')
+        .attr('r', 80)
+        .attr('fill', 'none')
+        .attr('stroke', 'rgba(255,215,0,0.25)')
+        .attr('stroke-dasharray', '6 3');
+
+      innerCenterG.append('text')
+        .text('巽风灵图')
+        .attr('text-anchor', 'middle')
+        .attr('y', 4)
+        .attr('fill', 'rgba(245, 166, 35, 0.55)')
+        .attr('font-size', '13px')
+        .attr('font-family', 'Noto Serif SC, serif')
+        .attr('letter-spacing', '2px');
+
+      // Option Badges along circle radius 128
+      const winnerIndex = options.findIndex(opt =>
+        (winnerId && opt.id === winnerId) || (winnerText && opt.text === winnerText)
+      );
+      const targetWinIdx = winnerIndex >= 0 ? winnerIndex : 0;
+      const angleStep = 360 / options.length;
+
+      const optionNodes = options.map((opt, i) => {
+        const angle = i * angleStep; // degrees
+        return {
+          id: opt.id || i,
+          text: opt.text,
+          isWinner: i === targetWinIdx,
+          angle,
+          rad: (angle - 90) * Math.PI / 180
+        };
+      });
+
+      const optionGroup = g.append('g').attr('class', 'bagua-options');
+
+      const optionItems = optionGroup.selectAll('.bagua-opt')
+        .data(optionNodes)
+        .enter()
+        .append('g')
+        .attr('class', 'bagua-opt')
+        .attr('transform', d => {
+          const x = Math.cos(d.rad) * 128;
+          const y = Math.sin(d.rad) * 128;
+          return `translate(${x}, ${y})`;
+        });
+
+      // Parchment Badge
+      optionItems.append('rect')
+        .attr('x', -36)
+        .attr('y', -16)
+        .attr('width', 72)
+        .attr('height', 32)
+        .attr('rx', 8)
+        .attr('fill', '#1a1614')
+        .attr('stroke', d => d.isWinner ? '#ffd700' : 'rgba(245, 166, 35, 0.35)')
+        .attr('stroke-width', d => d.isWinner ? 2 : 1)
+        .style('filter', d => d.isWinner ? 'url(#goldGlow)' : 'none');
+
+      optionItems.append('text')
+        .text(d => d.text.length > 5 ? d.text.slice(0, 4) + '…' : d.text)
+        .attr('text-anchor', 'middle')
+        .attr('y', 4)
+        .attr('fill', d => d.isWinner ? '#ffd700' : '#d1d5db')
+        .attr('font-size', '11px')
+        .attr('font-weight', 'bold')
+        .attr('font-family', 'Noto Serif SC, serif');
+
+      // Compass Needle Pointer G
+      const needleG = g.append('g').attr('class', 'bagua-needle');
+
+      // Needle Shape
+      needleG.append('polygon')
+        .attr('points', '0,-150 -10,-20 0,-90 10,-20')
+        .attr('fill', 'url(#goldGradient)')
+        .style('filter', 'url(#goldGlow)');
+
+      needleG.append('polygon')
+        .attr('points', '0,150 -8,20 0,60 8,20')
+        .attr('fill', '#d93829');
+
+      needleG.append('circle')
+        .attr('r', 13)
+        .attr('fill', '#ffd700')
+        .attr('stroke', '#d93829')
+        .attr('stroke-width', 2.5)
+        .style('filter', 'url(#goldGlow)');
+
+      needleG.append('circle')
+        .attr('r', 5)
+        .attr('fill', '#060709');
+
+      // Orbiting Wind Particle Orbs
+      const particleGroup = g.append('g').attr('class', 'bagua-particles');
+      const particleCount = 20;
+      const particleData = Array.from({ length: particleCount }, (_, i) => ({
+        id: i,
+        radius: 75 + Math.random() * 110,
+        angle: Math.random() * Math.PI * 2,
+        speed: (0.01 + Math.random() * 0.02) * (i % 2 === 0 ? 1 : -1),
+        size: 2 + Math.random() * 3,
+        color: i % 3 === 0 ? '#ffd700' : i % 3 === 1 ? '#d93829' : '#f5a623'
+      }));
+
+      const particleElems = particleGroup.selectAll('.bagua-particle')
+        .data(particleData)
+        .enter()
+        .append('circle')
+        .attr('class', 'bagua-particle')
+        .attr('r', d => d.size)
+        .attr('fill', d => d.color)
+        .attr('opacity', 0.8);
+
+      // Animation Loop Timer
+      let baguaTime = 0;
+      const targetAngle = optionNodes[targetWinIdx].angle;
+      let currentNeedleAngle = 0;
+      let isSettling = false;
+      let lastAudioTick = 0;
+
+      const baguaTimer = d3.timer((elapsed) => {
+        baguaTime = elapsed;
+
+        if (!isSettling) {
+          // Swirling Stage: Rings rotate & needle sweeps rapidly
+          outerGuaG.attr('transform', `rotate(${baguaTime * 0.04})`);
+          middleRingG.attr('transform', `rotate(${-baguaTime * 0.06})`);
+
+          currentNeedleAngle = (baguaTime * 1.2) % 360;
+          needleG.attr('transform', `rotate(${currentNeedleAngle})`);
+
+          // Audio tick every 100ms
+          if (elapsed - lastAudioTick > 110) {
+            lastAudioTick = elapsed;
+            audioEngine.playTick(700 + Math.random() * 300);
+          }
+        }
+
+        // Update orbiting particles
+        particleElems
+          .attr('cx', d => {
+            d.angle += d.speed;
+            return Math.cos(d.angle) * d.radius;
+          })
+          .attr('cy', d => Math.sin(d.angle) * d.radius)
+          .attr('opacity', d => 0.4 + Math.sin(baguaTime * 0.005 + d.id) * 0.4);
+      });
+
+      // Timers for phase transitions
+      const scatterTimer = setTimeout(() => {
+        isSettling = true;
+
+        // Calculate final needle rotation (at least 3 full extra spins + lock on winner)
+        const finalAngle = 360 * 3 + targetAngle;
+
+        needleG.transition()
+          .duration(1500)
+          .ease(d3.easeCubicOut)
+          .attrTween('transform', () => {
+            const interpolate = d3.interpolate(currentNeedleAngle, finalAngle);
+            return t => `rotate(${interpolate(t)})`;
+          });
+
+        // Non-winner options disintegrate and scatter outward
+        optionItems.filter(d => !d.isWinner)
+          .transition()
+          .duration(1200)
+          .ease(d3.easeCubicOut)
+          .attr('transform', d => {
+            const scatterDist = 380 + Math.random() * 100;
+            const x = Math.cos(d.rad) * scatterDist;
+            const y = Math.sin(d.rad) * scatterDist;
+            return `translate(${x}, ${y}) scale(0.2)`;
+          })
+          .attr('opacity', 0);
+
+        // Winner option expands and glows prominently in center
+        optionItems.filter(d => d.isWinner)
+          .transition()
+          .duration(1400)
+          .ease(d3.easeBackOut)
+          .attr('transform', 'translate(0, 0) scale(1.8)')
+          .select('rect')
+          .attr('fill', '#281c0c')
+          .attr('stroke', '#ffd700')
+          .attr('stroke-width', 3);
+
+        setStage('scattering');
+      }, 2200);
+
+      const revealTimer = setTimeout(() => {
+        baguaTimer.stop();
+        setStage('revealed');
+        audioEngine.playGongSound();
+
+        try {
+          confetti({
+            particleCount: 100,
+            spread: 90,
+            origin: { y: 0.6 },
+            colors: ['#ffd700', '#d93829', '#f5a623', '#ffffff']
+          });
+        } catch (e) {}
+
+        onComplete && onComplete(decision);
+      }, 3800);
+
+      cleanup = () => {
+        baguaTimer.stop();
+        clearTimeout(scatterTimer);
+        clearTimeout(revealTimer);
+      };
     }
 
     return cleanup;
@@ -805,6 +1100,19 @@ const CeremonyRevealModal = ({ isOpen, decision, mode, onClose, onComplete }) =>
           <span>🎋 <span className="hidden sm:inline">竹签卜卦</span><span className="sm:hidden">竹签</span></span>
         </button>
         <button
+          onClick={() => {
+            setActiveMode('bagua');
+            setReplayCount(c => c + 1);
+          }}
+          className={`px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-full text-xs font-serif transition-all flex items-center space-x-1 ${
+            currentMode === 'bagua'
+              ? 'bg-amber-500/15 text-amber-300 font-semibold border border-amber-500/30 shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 border border-transparent'
+          }`}
+        >
+          <span>🧭 <span className="hidden sm:inline">巽风罗盘</span><span className="sm:hidden">罗盘</span></span>
+        </button>
+        <button
           onClick={() => setReplayCount(c => c + 1)}
           className="p-1 sm:p-1.5 rounded-full bg-slate-900/80 hover:bg-slate-800 text-amber-400 border border-slate-800 transition-colors ml-0.5"
           title="重新演练"
@@ -816,7 +1124,7 @@ const CeremonyRevealModal = ({ isOpen, decision, mode, onClose, onComplete }) =>
       {stage === 'swirl' && (
         <div className="absolute top-20 text-center pointer-events-none animate-pulse">
           <p className="font-serif text-2xl text-amber-400 font-bold tracking-widest">
-            {currentMode === 'roulette' ? '东风浩荡 · 粒子漩涡寻抉择' : '朱漆签筒 · 灵签振响应天地'}
+            {currentMode === 'roulette' ? '东风浩荡 · 粒子漩涡寻抉择' : currentMode === 'tally' ? '朱漆签筒 · 灵签振响应天地' : '巽风星盘 · 乾坤八卦指迷津'}
           </p>
           <p className="text-xs text-slate-400 mt-2 font-serif">沉心观候，等待东风抉择真定...</p>
         </div>
@@ -825,7 +1133,7 @@ const CeremonyRevealModal = ({ isOpen, decision, mode, onClose, onComplete }) =>
       {stage === 'scattering' && (
         <div className="absolute top-20 text-center pointer-events-none">
           <p className="font-serif text-2xl text-red-500 font-bold tracking-widest animate-bounce">
-            {currentMode === 'roulette' ? '狂风拂余 · 真定将现' : '灵签出筒 · 胜者跃出'}
+            {currentMode === 'roulette' ? '狂风拂余 · 真定将现' : currentMode === 'tally' ? '灵签出筒 · 胜者跃出' : '天干地支 · 巽风定乾坤'}
           </p>
         </div>
       )}
@@ -838,7 +1146,7 @@ const CeremonyRevealModal = ({ isOpen, decision, mode, onClose, onComplete }) =>
           
           <div className="my-6 p-6 rounded-xl bg-slate-950/80 border border-amber-500/30 animate-gold-pulse">
             <span className="text-xs text-amber-400 font-mono tracking-widest block mb-2">
-              {currentMode === 'roulette' ? '🌪️ 漩涡风场判定胜出者' : '🎋 竹签卜卦签王领受'}
+              {currentMode === 'roulette' ? '🌪️ 漩涡风场判定胜出者' : currentMode === 'tally' ? '🎋 竹签卜卦签王领受' : '🧭 巽风罗盘乾坤定格'}
             </span>
             <div className="text-3xl md:text-4xl font-serif font-black text-amber-300 winner-glow tracking-wide">
               {winnerText}
@@ -1154,19 +1462,165 @@ const OptionListDisplay = ({ options, winnerId, winnerText }) => {
   );
 };
 
+// --- Random Guest Generator Utility ---
+const GUEST_NAMES_PREFIX = ['听风', '问竹', '乘风', '观云', '御风', '拂柳', '揽月', '寻风', '追风', '踏歌', '清风', '随风', '凌云', '隐风', '吹雪', '破浪', '醉风', '逍遥', '微风', '栖云'];
+const GUEST_NAMES_SUFFIX = ['客', '人', '居士', '隐士', '散人', '游子', '少侠', '剑客', '行者', '琴师', '吟客', '仙', '客官', '道人', '画师'];
+const GUEST_AVATARS = ['🍃', '🌬️', '🎋', '🔔', '🏮', '🎐', '🐉', '☁️', '📜', '☯️', '🍵', '🌸', '🌊', '🌙', '✨', '🗡️', '🦅', '🪴'];
+
+const generateRandomGuest = () => {
+  const prefix = GUEST_NAMES_PREFIX[Math.floor(Math.random() * GUEST_NAMES_PREFIX.length)];
+  const suffix = GUEST_NAMES_SUFFIX[Math.floor(Math.random() * GUEST_NAMES_SUFFIX.length)];
+  const num = Math.floor(10 + Math.random() * 90);
+  const avatar = GUEST_AVATARS[Math.floor(Math.random() * GUEST_AVATARS.length)];
+  const id = 'guest_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36).substring(4);
+  return {
+    id,
+    nickname: `${prefix}${suffix}_${num}`,
+    avatar
+  };
+};
+
+// --- Private Pool Delete Confirmation Modal ---
+const DeleteConfirmModal = ({ isOpen, decision, onClose, onConfirm, isDeleting }) => {
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape' && !isDeleting) onClose();
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isDeleting, onClose]);
+
+  if (!isOpen || !decision) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !isDeleting) onClose();
+      }}
+    >
+      <div
+        className="relative w-full max-w-md bg-slate-900/95 border border-amber-500/30 rounded-2xl p-6 shadow-2xl text-slate-100 overflow-hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-confirm-title"
+        aria-describedby="delete-confirm-description"
+      >
+        <div className="absolute -top-16 -right-16 w-32 h-32 bg-red-600/10 rounded-full blur-2xl pointer-events-none" />
+        <div className="absolute -bottom-16 -left-16 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+
+        <div className="flex items-start space-x-4 mb-4">
+          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 shrink-0">
+            <Trash2 className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 id="delete-confirm-title" className="font-serif text-lg font-bold text-amber-200">确认抹去此条记忆？</h3>
+            <p id="delete-confirm-description" className="text-xs text-slate-400 mt-1">
+              该操作将永久从您的私人池中删除此决定，无法撤销。
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3 my-4">
+          <p className="text-xs text-slate-500 mb-1">即将删除的决定：</p>
+          <p className="font-serif text-sm font-semibold text-amber-300 truncate">
+            {decision.title}
+          </p>
+          <div className="flex items-center space-x-2 text-xs text-slate-400 mt-1.5">
+            <span className="bg-slate-800/80 px-2 py-0.5 rounded text-slate-300">
+              {decision.options?.length || 0} 个选项
+            </span>
+            {decision.winner_text && (
+              <>
+                <span>·</span>
+                <span className="text-amber-400">结果: {decision.winner_text}</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end space-x-3 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isDeleting}
+            className="px-4 py-2 rounded-xl text-xs font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 transition"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isDeleting}
+            className="flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-red-600 hover:bg-red-500 border border-red-400/30 shadow-lg shadow-red-900/30 transition active:scale-95 disabled:opacity-50"
+          >
+            {isDeleting ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>删除中...</span>
+              </>
+            ) : (
+              <>
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>确认删除</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- Main Root Component ---
 function App() {
-  const [activeTab, setActiveTab] = useState('creator');
+  // Routing state and helper with smooth auto-scroll to top
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash.replace('#', '');
+      if (['creator', 'public', 'private'].includes(hash)) return hash;
+    }
+    return 'creator';
+  });
+
+  const navigateToTab = (newTab) => {
+    if (!['creator', 'public', 'private'].includes(newTab)) return;
+    setActiveTab(newTab);
+    if (window.location.hash !== `#${newTab}`) {
+      window.location.hash = newTab;
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Hash route change listener
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '');
+      if (['creator', 'public', 'private'].includes(hash)) {
+        setActiveTab(hash);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [isReducedMotion, setIsReducedMotion] = useState(false);
 
   // Guest / User state
   const [user, setUser] = useState(null);
-  const [guestInfo, setGuestInfo] = useState({
-    id: 'guest_' + Math.random().toString(36).substring(2, 9),
-    nickname: '清风观云客',
-    avatar: '🍃'
-  });
+  const [guestInfo, setGuestInfo] = useState(() => generateRandomGuest());
+
+  const rerollGuest = () => {
+    const fresh = generateRandomGuest();
+    setGuestInfo(fresh);
+    localStorage.setItem('dongfeng_guest', JSON.stringify(fresh));
+  };
 
   const [avatars, setAvatars] = useState([]);
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -1178,7 +1632,7 @@ function App() {
     { id: '2', text: '选项 B', weight: 1 }
   ]);
   const [mode, setMode] = useState('roulette');
-  const [isPublic, setIsPublic] = useState(true);
+  const [isPublic, setIsPublic] = useState(false);
   const [tagsInput, setTagsInput] = useState('日常, 决策');
 
   // Reveal Ceremony State
@@ -1188,15 +1642,24 @@ function App() {
   // Verification modal state
   const [verifyId, setVerifyId] = useState(null);
 
-  // Public Pool State with Infinite Scroll
+  // Public Pool State with Infinite Scroll & Debounce
   const [publicDecisions, setPublicDecisions] = useState([]);
   const [publicSort, setPublicSort] = useState('latest');
-  const [publicTag, setPublicTag] = useState('');
+  const [publicTagInput, setPublicTagInput] = useState('');
+  const [debouncedPublicTag, setDebouncedPublicTag] = useState('');
   const [publicPage, setPublicPage] = useState(1);
   const [publicHasMore, setPublicHasMore] = useState(true);
   const [publicLoading, setPublicLoading] = useState(false);
   const [publicLoadingMore, setPublicLoadingMore] = useState(false);
   const publicSentinelRef = useRef(null);
+
+  // Debounce Tag Filter (350ms delay)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedPublicTag(publicTagInput.trim());
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [publicTagInput]);
 
   // Private Pool State with Infinite Scroll
   const [privateDecisions, setPrivateDecisions] = useState([]);
@@ -1224,15 +1687,23 @@ function App() {
       }
       const savedGuest = localStorage.getItem('dongfeng_guest');
       if (savedGuest) {
-        setGuestInfo(JSON.parse(savedGuest));
+        try {
+          setGuestInfo(JSON.parse(savedGuest));
+        } catch (e) {
+          const fresh = generateRandomGuest();
+          setGuestInfo(fresh);
+          localStorage.setItem('dongfeng_guest', JSON.stringify(fresh));
+        }
       } else {
-        localStorage.setItem('dongfeng_guest', JSON.stringify(guestInfo));
+        const fresh = generateRandomGuest();
+        setGuestInfo(fresh);
+        localStorage.setItem('dongfeng_guest', JSON.stringify(fresh));
       }
     } catch (e) {}
   }, []);
 
   // Fetch Public Decisions with Pagination
-  const fetchPublicPool = (pageToLoad = 1, append = false) => {
+  const fetchPublicPool = (pageToLoad = 1, append = false, searchTag = debouncedPublicTag) => {
     if (pageToLoad === 1) {
       setPublicLoading(true);
     } else {
@@ -1241,7 +1712,7 @@ function App() {
 
     const limit = 6;
     let url = `./api/decisions/public?page=${pageToLoad}&limit=${limit}&sort=${publicSort}`;
-    if (publicTag) url += `&tag=${encodeURIComponent(publicTag)}`;
+    if (searchTag) url += `&tag=${encodeURIComponent(searchTag)}`;
 
     fetch(url)
       .then(res => res.json())
@@ -1263,14 +1734,14 @@ function App() {
       });
   };
 
-  // Reset & load page 1 when tab, sort, or tag changes
+  // Reset & load page 1 when tab, sort, or debounced tag changes
   useEffect(() => {
     if (activeTab === 'public') {
       setPublicPage(1);
       setPublicHasMore(true);
-      fetchPublicPool(1, false);
+      fetchPublicPool(1, false, debouncedPublicTag);
     }
-  }, [activeTab, publicSort, publicTag]);
+  }, [activeTab, publicSort, debouncedPublicTag]);
 
   // Infinite Scroll Observer for Public Pool
   useEffect(() => {
@@ -1280,13 +1751,13 @@ function App() {
 
     const observer = new IntersectionObserver((entries) => {
       if (entries[0].isIntersecting) {
-        fetchPublicPool(publicPage + 1, true);
+        fetchPublicPool(publicPage + 1, true, debouncedPublicTag);
       }
     }, { rootMargin: '250px' });
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [activeTab, publicLoading, publicLoadingMore, publicHasMore, publicPage, publicSort, publicTag]);
+  }, [activeTab, publicLoading, publicLoadingMore, publicHasMore, publicPage, publicSort, debouncedPublicTag]);
 
   // Fetch Private Decisions with Pagination
   const fetchPrivatePool = (pageToLoad = 1, append = false) => {
@@ -1365,7 +1836,11 @@ function App() {
 
   const handleUpdateOption = (index, field, val) => {
     const updated = [...options];
-    updated[index][field] = val;
+    if (field === 'text') {
+      updated[index][field] = String(val).slice(0, 20);
+    } else {
+      updated[index][field] = val;
+    }
     setOptions(updated);
   };
 
@@ -1380,10 +1855,10 @@ function App() {
   };
 
   const handleApplyPreset = (preset) => {
-    setTitle(preset.title);
+    setTitle(preset.title.slice(0, 20));
     setOptions(preset.options.map((opt, i) => ({
       id: (i + 1).toString(),
-      text: opt.text,
+      text: opt.text.slice(0, 20),
       weight: opt.weight
     })));
     setTagsInput(preset.tags.join(', '));
@@ -1466,16 +1941,32 @@ function App() {
       });
   };
 
-  // Handle Delete
-  const handleDeleteDecision = (id) => {
-    if (!confirm('确定要删除该决定记录吗？')) return;
-    fetch(`./api/decisions/${id}`, { method: 'DELETE' })
+  // Delete confirm modal state
+  const [deletingDecision, setDeletingDecision] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteDecisionConfirm = () => {
+    if (!deletingDecision) return;
+    setIsDeleting(true);
+    fetch(`./api/decisions/${deletingDecision.id}`, { method: 'DELETE' })
       .then(res => res.json())
       .then(data => {
         if (data.ok) {
-          setPrivateDecisions(prev => prev.filter(item => item.id !== id));
+          setPrivateDecisions(prev => prev.filter(item => item.id !== deletingDecision.id));
+        } else {
+          alert(data.error || '删除失败，请稍后重试');
         }
+      })
+      .catch(() => alert('网络请求异常，请稍后重试'))
+      .finally(() => {
+        setIsDeleting(false);
+        setDeletingDecision(null);
       });
+  };
+
+  const handleDeleteDecision = (id) => {
+    const decision = privateDecisions.find(item => item.id === id);
+    if (decision) setDeletingDecision(decision);
   };
 
   const handleExportJSON = () => {
@@ -1578,9 +2069,9 @@ function App() {
                 </div>
                 <button
                   onClick={() => setAuthModalOpen(true)}
-                  className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full bg-red-950/80 hover:bg-red-900 text-red-200 text-xs font-serif border border-red-800/50 flex items-center space-x-1 transition-colors"
+                  className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 text-xs font-serif border border-amber-500/30 flex items-center space-x-1 transition-all shadow-sm shadow-amber-950/20"
                 >
-                  <LogIn className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                  <LogIn className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400" />
                   <span>登录</span>
                 </button>
               </div>
@@ -1621,16 +2112,20 @@ function App() {
             <div className="max-w-2xl mx-auto glass-panel p-6 sm:p-8 rounded-2xl border border-slate-800 shadow-2xl relative">
               <form onSubmit={handleSubmitDecision} className="space-y-6">
                 <div>
-                  <label className="block text-sm font-serif text-amber-400 mb-2 flex items-center space-x-1">
-                    <Compass className="w-4 h-4" />
-                    <span>你的困惑或决定标题</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-serif text-amber-400 flex items-center space-x-1">
+                      <Compass className="w-4 h-4" />
+                      <span>你的困惑或决定标题</span>
+                    </label>
+                    <span className="text-xs text-slate-500 font-mono">{title.length} / 20 字</span>
+                  </div>
                   <input
                     type="text"
                     required
+                    maxLength={20}
                     value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="例如：今晚吃什么？/ 该选 Offer A 还是 Offer B？"
+                    onChange={(e) => setTitle(e.target.value.slice(0, 20))}
+                    placeholder="例如：今晚吃什么？（最多20字）"
                     className="w-full px-4 py-3 rounded-xl bg-slate-950/80 border border-slate-800 focus:border-amber-500 text-slate-100 placeholder-slate-600 font-serif text-base outline-none transition-all"
                   />
                 </div>
@@ -1652,9 +2147,10 @@ function App() {
                         <input
                           type="text"
                           required
+                          maxLength={20}
                           value={opt.text}
-                          onChange={(e) => handleUpdateOption(index, 'text', e.target.value)}
-                          placeholder={`选项 ${index + 1}`}
+                          onChange={(e) => handleUpdateOption(index, 'text', e.target.value.slice(0, 20))}
+                          placeholder={`选项 ${index + 1}（最多20字）`}
                           className="flex-1 bg-transparent text-sm text-slate-200 outline-none px-2 font-serif"
                         />
 
@@ -1854,8 +2350,8 @@ function App() {
                 <div className="relative">
                   <input
                     type="text"
-                    value={publicTag}
-                    onChange={(e) => setPublicTag(e.target.value)}
+                    value={publicTagInput}
+                    onChange={(e) => setPublicTagInput(e.target.value)}
                     placeholder="按标签过滤 (#美食)"
                     className="px-3 py-1.5 pl-8 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 outline-none focus:border-amber-500 font-serif"
                   />
@@ -2134,6 +2630,14 @@ function App() {
           setUser(userData);
           localStorage.setItem('dongfeng_user', JSON.stringify(userData));
         }}
+      />
+
+      <DeleteConfirmModal
+        isOpen={!!deletingDecision}
+        decision={deletingDecision}
+        isDeleting={isDeleting}
+        onClose={() => setDeletingDecision(null)}
+        onConfirm={handleDeleteDecisionConfirm}
       />
     </div>
   );
