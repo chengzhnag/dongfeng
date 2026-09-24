@@ -1,42 +1,12 @@
 import { DurableObject } from "cloudflare:workers";
 import { Hono } from "hono";
+import { sign, verify } from "hono/jwt";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { generateId, generateVerificationHash, hashPassword, verifyPassword } from "./lib/crypto";
+import { weightedRandomPick } from "./lib/decision";
+import { RateLimiter } from "./lib/rate-limit";
 
-// Helper for crypto hash fingerprinting
-async function generateVerificationHash(seed: string, title: string, winnerId: string, optionsJson: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(`DONGFENG_VERIFY::${seed}::${title}::${winnerId}::${optionsJson}`);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-// Simple token generator
-function generateId(prefix: string = ""): string {
-  const arr = new Uint8Array(12);
-  crypto.getRandomValues(arr);
-  const str = Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
-  return prefix ? `${prefix}_${str}` : str;
-}
-
-// CSPRNG weighted pick
-function weightedRandomPick(options: Array<{ id: string; text: string; weight: number }>) {
-  const totalWeight = options.reduce((sum, opt) => sum + (opt.weight || 1), 0);
-  
-  // Use CSPRNG float between 0 and totalWeight
-  const randomBuffer = new Uint32Array(2);
-  crypto.getRandomValues(randomBuffer);
-  // combine into 53-bit random float [0, 1)
-  const randomValue = ((randomBuffer[0] >>> 5) * 67108864 + (randomBuffer[1] >>> 6)) / 9007199254740992;
-  
-  let target = randomValue * totalWeight;
-  for (const opt of options) {
-    target -= (opt.weight || 1);
-    if (target <= 0) {
-      return opt;
-    }
-  }
-  return options[options.length - 1];
-}
+const SESSION_COOKIE = "dongfeng_session";
 
 // Traditional Chinese avatar list
 const AVATARS = [
@@ -53,6 +23,8 @@ const AVATARS = [
 export class App extends DurableObject {
   private app = new Hono();
   private initialized = false;
+  private env: Record<string, unknown>;
+  private rateLimiter = new RateLimiter();
 
   private initDatabase() {
     if (this.initialized) return;
@@ -100,173 +72,86 @@ export class App extends DurableObject {
       CREATE INDEX IF NOT EXISTS idx_decisions_guest ON decisions(guest_id, created_at DESC);
     `);
 
-    // Seed default sample public decisions if empty
-    const count = this.ctx.storage.sql.exec(`SELECT COUNT(*) as c FROM decisions`).one()?.c as number;
-    if (count === 0) {
-      this.seedSampleData();
-    }
-
     this.initialized = true;
-  }
-
-  private async seedSampleData() {
-    const samples = [
-      {
-        title: "遇事不决，今晚宵夜吃什么？",
-        options: [
-          { id: "opt_1", text: "热气腾腾的重庆火锅", weight: 3 },
-          { id: "opt_2", text: "香气四溢的木炭烧烤", weight: 3 },
-          { id: "opt_3", text: "清爽鲜美的手作日料", weight: 2 },
-          { id: "opt_4", text: "在家煮一碗小面", weight: 1 }
-        ],
-        mode: "roulette",
-        tags: ["美食", "宵夜", "生活"],
-        guest_nickname: "清风观云客",
-        guest_avatar: "🍃"
-      },
-      {
-        title: "本周末充能计划选择",
-        options: [
-          { id: "opt_1", text: "去郊外公园搭帐篷听风", weight: 2 },
-          { id: "opt_2", text: "在图书馆安静阅读一下午", weight: 2 },
-          { id: "opt_3", text: "约三五好友打羽毛球", weight: 1 },
-          { id: "opt_4", text: "在家深度睡眠 + 看一部老电影", weight: 2 }
-        ],
-        mode: "tally",
-        tags: ["周末", "放松", "生活"],
-        guest_nickname: "竹林闲人",
-        guest_avatar: "🎋"
-      },
-      {
-        title: "新项目技术栈选型判定",
-        options: [
-          { id: "opt_1", text: "React + D3.js + Edge Worker", weight: 3 },
-          { id: "opt_2", text: "Vue 3 + Canvas + Node.js", weight: 2 },
-          { id: "opt_3", text: "SvelteKit + WebGL", weight: 1 }
-        ],
-        mode: "roulette",
-        tags: ["职场", "技术", "架构"],
-        guest_nickname: "墨客极客",
-        guest_avatar: "☁️"
-      },
-      {
-        title: "今年年假旅游目的地挑选",
-        options: [
-          { id: "opt_1", text: "云南大理洱海骑行发呆", weight: 3 },
-          { id: "opt_2", text: "川西环线看雪山看秋色", weight: 2 },
-          { id: "opt_3", text: "青岛威海海边看日出", weight: 2 },
-          { id: "opt_4", text: "成都吃遍太古里街头巷尾", weight: 2 }
-        ],
-        mode: "roulette",
-        tags: ["旅行", "生活", "度假"],
-        guest_nickname: "独钓寒江",
-        guest_avatar: "🎣"
-      },
-      {
-        title: "下班后第一件事应该做什么？",
-        options: [
-          { id: "opt_1", text: "换上跑鞋去公园慢跑 5 公里", weight: 2 },
-          { id: "opt_2", text: "戴上耳机听舒缓吉他乐冥想", weight: 2 },
-          { id: "opt_3", text: "做一顿丰盛晚餐抚慰肠胃", weight: 3 },
-          { id: "opt_4", text: "打两局单机游戏放松大脑", weight: 1 }
-        ],
-        mode: "tally",
-        tags: ["生活", "健康"],
-        guest_nickname: "醉月临风",
-        guest_avatar: "🌙"
-      },
-      {
-        title: "下本打算阅读的书籍类型",
-        options: [
-          { id: "opt_1", text: "东方美学与古典哲学类", weight: 2 },
-          { id: "opt_2", text: "硬核科幻小说（如《三体》系列）", weight: 3 },
-          { id: "opt_3", text: "心理学与思维模型类", weight: 2 },
-          { id: "opt_4", text: "人类简史与文明演变类", weight: 1 }
-        ],
-        mode: "roulette",
-        tags: ["阅读", "学习"],
-        guest_nickname: "松下客",
-        guest_avatar: "🌲"
-      },
-      {
-        title: "个人独立项目主题确定",
-        options: [
-          { id: "opt_1", text: "国风极简风声音效合成器", weight: 3 },
-          { id: "opt_2", text: "个人知识库卡片盒笔记系统", weight: 2 },
-          { id: "opt_3", text: "沉浸式三维星空灵感画板", weight: 2 }
-        ],
-        mode: "roulette",
-        tags: ["技术", "灵感", "独立开发"],
-        guest_nickname: "金铃寻声",
-        guest_avatar: "🔔"
-      },
-      {
-        title: "跳槽 Offes 决策建议",
-        options: [
-          { id: "opt_1", text: "大厂成熟业务组（稳定与资源）", weight: 2 },
-          { id: "opt_2", text: "初创 AI 赛道核心团队（高成长高风险）", weight: 2 },
-          { id: "opt_3", text: "外企 WFB 远程团队（高 Work-Life Balance）", weight: 3 }
-        ],
-        mode: "tally",
-        tags: ["职场", "抉择"],
-        guest_nickname: "朱印断案",
-        guest_avatar: "💮"
-      },
-      {
-        title: "每天早晨唤醒自己的饮品",
-        options: [
-          { id: "opt_1", text: "手冲单品深烘咖啡", weight: 3 },
-          { id: "opt_2", text: "正山小种无糖红茶", weight: 2 },
-          { id: "opt_3", text: "新鲜鲜榨橙汁与温水", weight: 1 }
-        ],
-        mode: "roulette",
-        tags: ["生活", "美食"],
-        guest_nickname: "清风御剑",
-        guest_avatar: "🍃"
-      },
-      {
-        title: "健身房今日重点训练板块",
-        options: [
-          { id: "opt_1", text: "胸肌与三头力量训练", weight: 2 },
-          { id: "opt_2", text: "背部与二头拉力训练", weight: 2 },
-          { id: "opt_3", text: "核心腿部深蹲专项", weight: 1 },
-          { id: "opt_4", text: "45 分钟划船机有氧心肺", weight: 2 }
-        ],
-        mode: "tally",
-        tags: ["健身", "健康"],
-        guest_nickname: "流云听瀑",
-        guest_avatar: "☁️"
-      }
-    ];
-
-    for (const sample of samples) {
-      const winner = weightedRandomPick(sample.options);
-      const seed = generateId("seed");
-      const optionsJson = JSON.stringify(sample.options);
-      const tagsJson = JSON.stringify(sample.tags);
-      const hash = await generateVerificationHash(seed, sample.title, winner.id, optionsJson);
-      const id = generateId("dec");
-      const now = Date.now() - Math.floor(Math.random() * 86400000 * 3);
-
-      this.ctx.storage.sql.exec(`
-        INSERT INTO decisions (
-          id, guest_id, guest_nickname, guest_avatar, title, winner_id, winner_text,
-          options_json, mode, is_public, likes_count, views_count, tags_json, seed,
-          verification_hash, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
-      `, id, "guest_seed", sample.guest_nickname, sample.guest_avatar, sample.title, winner.id, winner.text,
-         optionsJson, sample.mode, Math.floor(Math.random() * 18) + 5, Math.floor(Math.random() * 120) + 30,
-         tagsJson, seed, hash, now);
-    }
   }
 
   constructor(ctx: DurableObjectState, env: Record<string, unknown>) {
     super(ctx, env);
+    this.env = env;
+
+    const isLimited = (c: any, action: string, max: number, windowMs: number) => {
+      const client = c.req.header("cf-connecting-ip") || "unknown";
+      return this.rateLimiter.isLimited(`${action}:${client}`, max, windowMs);
+    };
+    const sessionSecret = () => {
+      const secret = this.env.JWT_SECRET;
+      if (typeof secret !== "string" || secret.length < 32) throw new Error("JWT_SECRET must be configured with at least 32 characters");
+      return secret;
+    };
+    const getSessionUser = async (c: any) => {
+      const token = getCookie(c, SESSION_COOKIE);
+      if (!token) return null;
+      try {
+        const payload = await verify(token, sessionSecret(), "HS256");
+        if (typeof payload.sub !== "string") return null;
+        return this.ctx.storage.sql.exec(`SELECT id, username, email, avatar FROM users WHERE id = ?`, payload.sub).one() as any || null;
+      } catch {
+        return null;
+      }
+    };
+    const requireAuth = async (c: any) => {
+      const user = await getSessionUser(c);
+      if (!user) return c.json({ ok: false, error: "请先登录" }, 401);
+      c.set("user", user);
+      return null;
+    };
+    const requireSameOrigin = (c: any) => {
+      const origin = c.req.header("origin");
+      if (origin && origin !== new URL(c.req.url).origin) {
+        return c.json({ ok: false, error: "请求来源不受信任" }, 403);
+      }
+      return null;
+    };
+    const issueSession = async (c: any, userId: string) => {
+      const token = await sign({ sub: userId, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7 }, sessionSecret());
+      setCookie(c, SESSION_COOKIE, token, { httpOnly: true, secure: true, sameSite: "Lax", path: "/", maxAge: 60 * 60 * 24 * 7 });
+    };
     
     // Register Hono API endpoints
     this.app.use("*", async (c, next) => {
+      const contentLength = Number(c.req.header("content-length") || 0);
+      if (contentLength > 100 * 1024) return c.json({ ok: false, error: "请求体过大" }, 413);
+      c.header("X-Content-Type-Options", "nosniff");
+      c.header("X-Frame-Options", "DENY");
+      c.header("Referrer-Policy", "strict-origin-when-cross-origin");
+      c.header("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'");
       this.initDatabase();
       await next();
+    });
+
+    const getPublicOrigin = (c: any) => {
+      const configuredOrigin = this.env.PUBLIC_ORIGIN;
+      const origin = typeof configuredOrigin === "string" ? configuredOrigin : new URL(c.req.url).origin;
+      return origin.replace(/\/+$/, "");
+    };
+
+    this.app.get("/robots.txt", (c) => {
+      const sitemapUrl = `${getPublicOrigin(c)}/sitemap.xml`;
+      return c.text(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /private\nSitemap: ${sitemapUrl}\n`, 200, {
+        "Content-Type": "text/plain; charset=UTF-8",
+        "Cache-Control": "public, max-age=3600"
+      });
+    });
+
+    this.app.get("/sitemap.xml", (c) => {
+      const origin = getPublicOrigin(c);
+      const urls = ["/", "/creator", "/public"]
+        .map(path => `  <url><loc>${origin}${path}</loc></url>`)
+        .join("\n");
+      return c.text(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`, 200, {
+        "Content-Type": "application/xml; charset=UTF-8",
+        "Cache-Control": "public, max-age=3600"
+      });
     });
 
     // Avatars list
@@ -277,6 +162,9 @@ export class App extends DurableObject {
     // Register User
     this.app.post("/api/auth/register", async (c) => {
       try {
+        const originError = requireSameOrigin(c);
+        if (originError) return originError;
+        if (isLimited(c, "register", 5, 15 * 60 * 1000)) return c.json({ ok: false, error: "注册请求过于频繁，请稍后再试" }, 429);
         const { username, email, password, avatar } = await c.req.json<{
           username?: string;
           email?: string;
@@ -284,8 +172,11 @@ export class App extends DurableObject {
           avatar?: string;
         }>();
 
-        if (!username || !email || !password) {
+        if (!username || !email || !password || typeof username !== "string" || typeof email !== "string" || typeof password !== "string") {
           return c.json({ ok: false, error: "请填写完整的注册信息" }, 400);
+        }
+        if (username.length > 32 || email.length > 254 || password.length < 10 || password.length > 128) {
+          return c.json({ ok: false, error: "注册信息格式不正确" }, 400);
         }
 
         const existing = this.ctx.storage.sql.exec(
@@ -299,14 +190,15 @@ export class App extends DurableObject {
 
         const userId = generateId("usr");
         const now = Date.now();
-        // In real app hashing with bcrypt, here simplified string hash + salt
-        const passwordHash = `sha_${password}_salt`;
+        const passwordHash = await hashPassword(password);
         const chosenAvatar = avatar || AVATARS[0].icon;
 
         this.ctx.storage.sql.exec(
           `INSERT INTO users (id, username, email, password_hash, avatar, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
           userId, username, email, passwordHash, chosenAvatar, now
         );
+
+        await issueSession(c, userId);
 
         return c.json({
           ok: true,
@@ -320,8 +212,11 @@ export class App extends DurableObject {
     // Login User
     this.app.post("/api/auth/login", async (c) => {
       try {
+        const originError = requireSameOrigin(c);
+        if (originError) return originError;
+        if (isLimited(c, "login", 10, 15 * 60 * 1000)) return c.json({ ok: false, error: "登录尝试过于频繁，请稍后再试" }, 429);
         const { username, password } = await c.req.json<{ username?: string; password?: string }>();
-        if (!username || !password) {
+        if (typeof username !== "string" || typeof password !== "string" || !username || !password || password.length > 128) {
           return c.json({ ok: false, error: "请输入用户名和密码" }, 400);
         }
 
@@ -330,15 +225,12 @@ export class App extends DurableObject {
           username, username
         ).toArray();
 
-        if (rows.length === 0) {
-          return c.json({ ok: false, error: "用户不存在" }, 404);
-        }
+        if (rows.length === 0) return c.json({ ok: false, error: "用户名或密码不正确" }, 401);
 
         const user = rows[0] as any;
-        const expectedHash = `sha_${password}_salt`;
-        if (user.password_hash !== expectedHash) {
-          return c.json({ ok: false, error: "密码不正确" }, 401);
-        }
+        if (!(await verifyPassword(password, user.password_hash))) return c.json({ ok: false, error: "用户名或密码不正确" }, 401);
+
+        await issueSession(c, user.id);
 
         return c.json({
           ok: true,
@@ -354,20 +246,73 @@ export class App extends DurableObject {
       }
     });
 
+    this.app.post("/api/auth/logout", (c) => {
+      const originError = requireSameOrigin(c);
+      if (originError) return originError;
+      deleteCookie(c, SESSION_COOKIE, { path: "/" });
+      return c.json({ ok: true });
+    });
+
+    this.app.get("/api/auth/me", async (c) => {
+      return c.json({ ok: true, user: await getSessionUser(c) });
+    });
+
     // Create Decision and Roll (CSPRNG)
     this.app.post("/api/decisions/create", async (c) => {
       try {
+        const originError = requireSameOrigin(c);
+        if (originError) return originError;
+        const client = c.req.header("cf-connecting-ip") || "unknown";
+        if (isLimited(c, "create", 20, 60 * 60 * 1000)) {
+          return c.json({ ok: false, error: "创建请求过于频繁，请稍后再试" }, 429);
+        }
         const body = await c.req.json<{
           title: string;
           options: Array<{ id: string; text: string; weight: number }>;
           mode?: string;
           is_public?: boolean;
           tags?: string[];
-          user_id?: string;
-          guest_id?: string;
           guest_nickname?: string;
           guest_avatar?: string;
         }>();
+
+        if (!body || typeof body !== "object" || typeof body.title !== "string" || !Array.isArray(body.options) || body.options.length < 2 || body.options.length > 12) {
+          return c.json({ ok: false, error: "决定内容格式不正确" }, 400);
+        }
+        if (body.is_public !== undefined && typeof body.is_public !== "boolean") {
+          return c.json({ ok: false, error: "公开状态格式不正确" }, 400);
+        }
+        if (body.mode !== undefined && !["roulette", "tally", "bagua"].includes(body.mode)) {
+          return c.json({ ok: false, error: "决定模式不正确" }, 400);
+        }
+        const optionIds = new Set<string>();
+        for (const option of body.options) {
+          if (!option || typeof option !== "object" || typeof option.text !== "string" || option.text.length > 100) {
+            return c.json({ ok: false, error: "选项格式不正确" }, 400);
+          }
+          if (option.id !== undefined && (typeof option.id !== "string" || option.id.length > 64)) {
+            return c.json({ ok: false, error: "选项标识格式不正确" }, 400);
+          }
+          if (option.id && optionIds.has(option.id)) {
+            return c.json({ ok: false, error: "选项标识不能重复" }, 400);
+          }
+          if (option.id) optionIds.add(option.id);
+          if (option.weight !== undefined && (typeof option.weight !== "number" || !Number.isFinite(option.weight))) {
+            return c.json({ ok: false, error: "选项权重格式不正确" }, 400);
+          }
+        }
+        if (body.title.length > 100 || (body.tags && (!Array.isArray(body.tags) || body.tags.length > 10))) {
+          return c.json({ ok: false, error: "决定内容超出限制" }, 400);
+        }
+        if (body.tags?.some(tag => typeof tag !== "string" || tag.length > 30)) {
+          return c.json({ ok: false, error: "标签格式不正确" }, 400);
+        }
+        if (body.guest_nickname !== undefined && (typeof body.guest_nickname !== "string" || body.guest_nickname.length > 32)) {
+          return c.json({ ok: false, error: "昵称格式不正确" }, 400);
+        }
+        if (body.guest_avatar !== undefined && (typeof body.guest_avatar !== "string" || !AVATARS.some(avatar => avatar.icon === body.guest_avatar))) {
+          return c.json({ ok: false, error: "头像格式不正确" }, 400);
+        }
 
         if (!body.title || !body.title.trim()) {
           return c.json({ ok: false, error: "请输入决定标题" }, 400);
@@ -394,6 +339,13 @@ export class App extends DurableObject {
         const decisionId = generateId("dec");
         const now = Date.now();
 
+        const user = await getSessionUser(c);
+        const actorKey = user?.id || client;
+        if (this.rateLimiter.isLimited(`create-user:${actorKey}`, 50, 24 * 60 * 60 * 1000)) {
+          return c.json({ ok: false, error: "今日创建数量已达上限" }, 429);
+        }
+        if (!user && !body.is_public) return c.json({ ok: false, error: "登录后才能创建私人决定" }, 401);
+
         this.ctx.storage.sql.exec(`
           INSERT INTO decisions (
             id, user_id, guest_id, guest_nickname, guest_avatar, title, winner_id, winner_text,
@@ -402,8 +354,8 @@ export class App extends DurableObject {
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, ?, ?, ?, ?)
         `,
           decisionId,
-          body.user_id || null,
-          body.guest_id || "guest_anon",
+          user?.id || null,
+          user ? null : generateId("guest"),
           body.guest_nickname || "听风客",
           body.guest_avatar || "🍃",
           sanitizedTitle,
@@ -442,10 +394,11 @@ export class App extends DurableObject {
 
     // Public Pool API
     this.app.get("/api/decisions/public", (c) => {
-      const page = Math.max(1, parseInt(c.req.query("page") || "1"));
+      const requestedPage = Number(c.req.query("page") || "1");
+      const page = Number.isInteger(requestedPage) ? Math.min(1000, Math.max(1, requestedPage)) : 1;
       const limit = Math.min(30, Math.max(1, parseInt(c.req.query("limit") || "12")));
       const sort = c.req.query("sort") === "popular" ? "likes_count DESC, created_at DESC" : "created_at DESC";
-      const tag = c.req.query("tag");
+      const tag = (c.req.query("tag") || "").slice(0, 30);
 
       const offset = (page - 1) * limit;
 
@@ -471,10 +424,19 @@ export class App extends DurableObject {
       const total = (this.ctx.storage.sql.exec(countSql, ...countParams).one()?.total as number) || 0;
 
       const items = rows.map((r: any) => ({
-        ...r,
+        id: r.id,
+        title: r.title,
+        winner_id: r.winner_id,
+        winner_text: r.winner_text,
         options: JSON.parse(r.options_json || "[]"),
+        mode: r.mode,
         tags: JSON.parse(r.tags_json || "[]"),
-        is_public: r.is_public === 1
+        is_public: r.is_public === 1,
+        likes_count: r.likes_count,
+        views_count: r.views_count,
+        created_at: r.created_at,
+        guest_nickname: r.guest_nickname,
+        guest_avatar: r.guest_avatar
       }));
 
       return c.json({
@@ -485,39 +447,20 @@ export class App extends DurableObject {
     });
 
     // Private Pool / My Decisions API
-    this.app.get("/api/decisions/mine", (c) => {
-      const userId = c.req.query("user_id");
-      const guestId = c.req.query("guest_id");
-      const page = Math.max(1, parseInt(c.req.query("page") || "1"));
+    this.app.get("/api/decisions/mine", async (c) => {
+      const authError = await requireAuth(c);
+      if (authError) return authError;
+      const userId = ((c as any).get("user") as any).id;
+      const requestedPage = Number(c.req.query("page") || "1");
+      const page = Number.isInteger(requestedPage) ? Math.min(1000, Math.max(1, requestedPage)) : 1;
       const limit = Math.min(30, Math.max(1, parseInt(c.req.query("limit") || "12")));
       const offset = (page - 1) * limit;
-
-      if (!userId && !guestId) {
-        return c.json({ ok: false, error: "身份标识缺失" }, 400);
-      }
 
       let rows: any[] = [];
       let total = 0;
 
-      if (userId) {
-        rows = this.ctx.storage.sql.exec(
-          `SELECT * FROM decisions WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-          userId, limit, offset
-        ).toArray();
-        total = (this.ctx.storage.sql.exec(
-          `SELECT COUNT(*) as total FROM decisions WHERE user_id = ?`,
-          userId
-        ).one()?.total as number) || 0;
-      } else {
-        rows = this.ctx.storage.sql.exec(
-          `SELECT * FROM decisions WHERE guest_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-          guestId, limit, offset
-        ).toArray();
-        total = (this.ctx.storage.sql.exec(
-          `SELECT COUNT(*) as total FROM decisions WHERE guest_id = ?`,
-          guestId
-        ).one()?.total as number) || 0;
-      }
+      rows = this.ctx.storage.sql.exec(`SELECT * FROM decisions WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`, userId, limit, offset).toArray();
+      total = (this.ctx.storage.sql.exec(`SELECT COUNT(*) as total FROM decisions WHERE user_id = ?`, userId).one()?.total as number) || 0;
 
       const items = rows.map((r: any) => ({
         ...r,
@@ -535,10 +478,14 @@ export class App extends DurableObject {
 
     // Toggle Public Status
     this.app.post("/api/decisions/:id/toggle-public", async (c) => {
+      const originError = requireSameOrigin(c);
+      if (originError) return originError;
       const id = c.req.param("id");
-      const row = this.ctx.storage.sql.exec(`SELECT is_public FROM decisions WHERE id = ?`, id).toArray();
+      const authError = await requireAuth(c);
+      if (authError) return authError;
+      const row = this.ctx.storage.sql.exec(`SELECT is_public FROM decisions WHERE id = ? AND user_id = ?`, id, ((c as any).get("user") as any).id).toArray();
       if (row.length === 0) {
-        return c.json({ ok: false, error: "未找到该决定" }, 404);
+        return c.json({ ok: false, error: "未找到该决定或无权操作" }, 404);
       }
 
       const current = row[0].is_public as number;
@@ -550,35 +497,44 @@ export class App extends DurableObject {
 
     // Delete Decision
     this.app.delete("/api/decisions/:id", async (c) => {
+      const originError = requireSameOrigin(c);
+      if (originError) return originError;
       const id = c.req.param("id");
-      this.ctx.storage.sql.exec(`DELETE FROM decisions WHERE id = ?`, id);
+      const authError = await requireAuth(c);
+      if (authError) return authError;
+      const owned = this.ctx.storage.sql.exec(`SELECT id FROM decisions WHERE id = ? AND user_id = ?`, id, ((c as any).get("user") as any).id).toArray();
+      if (owned.length === 0) return c.json({ ok: false, error: "无权删除该决定" }, 403);
+      this.ctx.storage.sql.exec(`DELETE FROM decisions WHERE id = ? AND user_id = ?`, id, ((c as any).get("user") as any).id);
       this.ctx.storage.sql.exec(`DELETE FROM likes WHERE decision_id = ?`, id);
       return c.json({ ok: true });
     });
 
     // Like Decision
     this.app.post("/api/decisions/:id/like", async (c) => {
+      const originError = requireSameOrigin(c);
+      if (originError) return originError;
+      if (isLimited(c, "like", 60, 60 * 1000)) return c.json({ ok: false, error: "点赞请求过于频繁，请稍后再试" }, 429);
       const id = c.req.param("id");
-      const { actor_id } = await c.req.json<{ actor_id: string }>();
+      const user = await getSessionUser(c);
+      const actorId = user?.id || `ip:${c.req.header("cf-connecting-ip") || "unknown"}`;
 
-      if (!actor_id) {
-        return c.json({ ok: false, error: "需要包含操作者标识" }, 400);
-      }
+      const decision = this.ctx.storage.sql.exec(`SELECT id FROM decisions WHERE id = ? AND is_public = 1`, id).one();
+      if (!decision) return c.json({ ok: false, error: "未找到公开决定" }, 404);
 
       const existing = this.ctx.storage.sql.exec(
         `SELECT created_at FROM likes WHERE decision_id = ? AND actor_id = ?`,
-        id, actor_id
+        id, actorId
       ).toArray();
 
       if (existing.length > 0) {
         // Unlike
-        this.ctx.storage.sql.exec(`DELETE FROM likes WHERE decision_id = ? AND actor_id = ?`, id, actor_id);
+        this.ctx.storage.sql.exec(`DELETE FROM likes WHERE decision_id = ? AND actor_id = ?`, id, actorId);
         this.ctx.storage.sql.exec(`UPDATE decisions SET likes_count = MAX(0, likes_count - 1) WHERE id = ?`, id);
         const updated = this.ctx.storage.sql.exec(`SELECT likes_count FROM decisions WHERE id = ?`, id).one();
         return c.json({ ok: true, liked: false, likes_count: updated?.likes_count || 0 });
       } else {
         // Like
-        this.ctx.storage.sql.exec(`INSERT INTO likes (decision_id, actor_id, created_at) VALUES (?, ?, ?)`, id, actor_id, Date.now());
+        this.ctx.storage.sql.exec(`INSERT INTO likes (decision_id, actor_id, created_at) VALUES (?, ?, ?)`, id, actorId, Date.now());
         this.ctx.storage.sql.exec(`UPDATE decisions SET likes_count = likes_count + 1 WHERE id = ?`, id);
         const updated = this.ctx.storage.sql.exec(`SELECT likes_count FROM decisions WHERE id = ?`, id).one();
         return c.json({ ok: true, liked: true, likes_count: updated?.likes_count || 0 });
@@ -594,6 +550,10 @@ export class App extends DurableObject {
       }
 
       const dec = row[0] as any;
+      if (dec.is_public !== 1) {
+        const user = await getSessionUser(c);
+        if (!user || user.id !== dec.user_id) return c.json({ ok: false, error: "无权验真该私密决定" }, 403);
+      }
       const expectedHash = await generateVerificationHash(dec.seed, dec.title, dec.winner_id, dec.options_json);
       const isAuthentic = expectedHash === dec.verification_hash;
 
@@ -647,7 +607,14 @@ export default {
     }
 
     if (env.ASSETS && typeof env.ASSETS.fetch === "function") {
-      return env.ASSETS.fetch(request);
+      const response = await env.ASSETS.fetch(request);
+      const headers = new Headers(response.headers);
+      headers.set("X-Content-Type-Options", "nosniff");
+      headers.set("X-Frame-Options", "DENY");
+      headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+      headers.set("Content-Security-Policy", "default-src 'self' https://esm.sh https://unpkg.com https://cdn.tailwindcss.com https://fonts.googleapis.com https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://esm.sh https://unpkg.com https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'");
+      if (url.protocol === "https:") headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+      return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
     }
 
     return new Response("Not Found", { status: 404 });

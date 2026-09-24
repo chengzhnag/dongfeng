@@ -9,6 +9,23 @@ import {
   HelpCircle, Copy, Download, Tag, Search, Loader2
 } from 'lucide-react';
 
+const apiFetch = async (url, options = {}) => {
+  const response = await fetch(url, { credentials: 'include', ...options });
+  const text = await response.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(`服务器返回了无效响应（${response.status}）`);
+  }
+  if (!response.ok || data.ok === false) {
+    const error = new Error(data.error || `请求失败（${response.status}）`);
+    error.status = response.status;
+    throw error;
+  }
+  return data;
+};
+
 // --- Web Audio Procedural Chime & Gong Synthesizer ---
 class AudioEngine {
   constructor() {
@@ -1195,14 +1212,9 @@ const VerificationModal = ({ isOpen, decisionId, onClose }) => {
     if (!isOpen || !decisionId) return;
     setLoading(true);
 
-    fetch(`./api/decisions/${decisionId}/verify`)
-      .then(res => res.json())
-      .then(res => {
-        if (res.ok) {
-          setData(res);
-        }
-      })
-      .catch(err => console.error(err))
+    apiFetch(`./api/decisions/${decisionId}/verify`)
+      .then(res => setData(res))
+      .catch(err => console.error('验真请求失败:', err))
       .finally(() => setLoading(false));
   }, [isOpen, decisionId]);
 
@@ -1285,21 +1297,16 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, avatars }) => {
     const endpoint = tab === 'login' ? './api/auth/login' : './api/auth/register';
     const payload = tab === 'login' ? { username, password } : { username, email, password, avatar: selectedAvatar };
 
-    fetch(endpoint, {
+    apiFetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     })
-      .then(res => res.json())
       .then(data => {
-        if (data.ok) {
-          onAuthSuccess(data.user);
-          onClose();
-        } else {
-          setError(data.error || '操作失败');
-        }
+        onAuthSuccess(data.user);
+        onClose();
       })
-      .catch(() => setError('网络请求异常'))
+      .catch(err => setError(err.message || '网络请求异常'))
       .finally(() => setLoading(false));
   };
 
@@ -1694,16 +1701,15 @@ function App() {
       setIsReducedMotion(true);
     }
 
-    fetch('./api/avatars')
-      .then(res => res.json())
-      .then(d => d.ok && setAvatars(d.avatars))
+    apiFetch('./api/avatars')
+      .then(d => setAvatars(d.avatars))
+      .catch(() => {});
+
+    apiFetch('./api/auth/me')
+      .then(data => data.user && setUser(data.user))
       .catch(() => {});
 
     try {
-      const savedUser = localStorage.getItem('dongfeng_user');
-      if (savedUser) {
-        setUser(JSON.parse(savedUser));
-      }
       const savedGuest = localStorage.getItem('dongfeng_guest');
       if (savedGuest) {
         try {
@@ -1733,8 +1739,7 @@ function App() {
     let url = `./api/decisions/public?page=${pageToLoad}&limit=${limit}&sort=${publicSort}`;
     if (searchTag) url += `&tag=${encodeURIComponent(searchTag)}`;
 
-    fetch(url)
-      .then(res => res.json())
+    apiFetch(url)
       .then(data => {
         if (data.ok) {
           if (append) {
@@ -1787,15 +1792,15 @@ function App() {
     }
 
     const limit = 6;
-    let url = `./api/decisions/mine?page=${pageToLoad}&limit=${limit}&`;
-    if (user) {
-      url += `user_id=${user.id}`;
-    } else {
-      url += `guest_id=${guestInfo.id}`;
+    if (!user) {
+      setPrivateLoading(false);
+      setPrivateLoadingMore(false);
+      setPrivateDecisions([]);
+      return;
     }
+    const url = `./api/decisions/mine?page=${pageToLoad}&limit=${limit}`;
 
-    fetch(url)
-      .then(res => res.json())
+    apiFetch(url)
       .then(data => {
         if (data.ok) {
           if (append) {
@@ -1892,6 +1897,12 @@ function App() {
       return;
     }
 
+    if (!user && !isPublic) {
+      alert('请先登录，才能保存私人决定');
+      setAuthModalOpen(true);
+      return;
+    }
+
     const parsedTags = tagsInput.split(/[,，]/).map(t => t.trim()).filter(Boolean);
 
     const payload = {
@@ -1900,75 +1911,53 @@ function App() {
       mode,
       is_public: isPublic,
       tags: parsedTags,
-      user_id: user ? user.id : null,
-      guest_id: guestInfo.id,
       guest_nickname: user ? user.username : guestInfo.nickname,
       guest_avatar: user ? user.avatar : guestInfo.avatar
     };
 
-    fetch('./api/decisions/create', {
+    apiFetch('./api/decisions/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     })
-      .then(res => res.json())
       .then(data => {
-        if (data.ok) {
-          setCurrentDecision(data.decision);
-          setCeremonyOpen(true);
-        } else {
-          alert(data.error || '创建请求失败');
-        }
+        setCurrentDecision(data.decision);
+        setCeremonyOpen(true);
       })
-      .catch(err => alert('网络故障: ' + err.message));
+      .catch(err => alert(err.message || '创建请求失败'));
   };
 
   // Handle Like - Update local item state to preserve scroll position
   const handleLikeDecision = (id) => {
-    const actorId = user ? user.id : guestInfo.id;
-    fetch(`./api/decisions/${id}/like`, {
+    apiFetch(`./api/decisions/${id}/like`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ actor_id: actorId })
     })
-      .then(res => res.json())
       .then(data => {
-        if (data.ok) {
-          setPublicDecisions(prev => prev.map(item => {
-            if (item.id === id) {
-              return { ...item, likes_count: data.likes_count };
-            }
-            return item;
-          }));
-        }
-      });
+        setPublicDecisions(prev => prev.map(item => {
+          if (item.id === id) return { ...item, likes_count: data.likes_count };
+          return item;
+        }));
+      })
+      .catch(err => alert(err.message || '点赞失败，请稍后重试'));
   };
 
-  // Handle Toggle Public
   const handleTogglePublic = (id) => {
-    fetch(`./api/decisions/${id}/toggle-public`, { method: 'POST' })
-      .then(res => res.json())
+    apiFetch(`./api/decisions/${id}/toggle-public`, { method: 'POST' })
       .then(data => {
-        if (data.ok) {
-          setPrivateDecisions(prev => prev.map(item => {
-            if (item.id === id) {
-              return { ...item, is_public: data.is_public };
-            }
-            return item;
-          }));
-        }
-      });
+        setPrivateDecisions(prev => prev.map(item => {
+          if (item.id === id) return { ...item, is_public: data.is_public };
+          return item;
+        }));
+      })
+      .catch(err => alert(err.message || '公开状态更新失败，请稍后重试'));
   };
-
-  // Delete confirm modal state
   const [deletingDecision, setDeletingDecision] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDeleteDecisionConfirm = () => {
     if (!deletingDecision) return;
     setIsDeleting(true);
-    fetch(`./api/decisions/${deletingDecision.id}`, { method: 'DELETE' })
-      .then(res => res.json())
+    apiFetch(`./api/decisions/${deletingDecision.id}`, { method: 'DELETE' })
       .then(data => {
         if (data.ok) {
           setPrivateDecisions(prev => prev.filter(item => item.id !== deletingDecision.id));
@@ -1976,7 +1965,7 @@ function App() {
           alert(data.error || '删除失败，请稍后重试');
         }
       })
-      .catch(() => alert('网络请求异常，请稍后重试'))
+      .catch(err => alert(err.message || '网络请求异常，请稍后重试'))
       .finally(() => {
         setIsDeleting(false);
         setDeletingDecision(null);
@@ -2072,8 +2061,8 @@ function App() {
                 <span className="font-serif text-slate-200 hidden md:inline">{user.username}</span>
                 <button
                   onClick={() => {
-                    setUser(null);
-                    localStorage.removeItem('dongfeng_user');
+                    apiFetch('./api/auth/logout', { method: 'POST' })
+                      .finally(() => setUser(null));
                   }}
                   className="text-slate-400 hover:text-red-400 ml-0.5"
                   title="退出"
@@ -2530,7 +2519,17 @@ function App() {
               </div>
             </div>
 
-            {privateLoading ? (
+            {!user ? (
+              <div className="py-20 text-center glass-panel rounded-2xl border border-slate-800 p-8">
+                <p className="font-serif text-slate-400 text-base mb-3">登录后才能查看你的私人历史</p>
+                <button
+                  onClick={() => setAuthModalOpen(true)}
+                  className="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold font-serif text-xs shadow-lg shadow-amber-500/20"
+                >
+                  登录账号
+                </button>
+              </div>
+            ) : privateLoading ? (
               <div className="py-20 text-center text-slate-400 font-serif flex flex-col items-center justify-center space-y-3">
                 <Wind className="w-8 h-8 text-amber-500 animate-spin" />
                 <span>正在加载私人历史决策记录...</span>
@@ -2654,7 +2653,6 @@ function App() {
         avatars={avatars}
         onAuthSuccess={(userData) => {
           setUser(userData);
-          localStorage.setItem('dongfeng_user', JSON.stringify(userData));
         }}
       />
 

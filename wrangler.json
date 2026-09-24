@@ -2,6 +2,10 @@
   "name": "dongfeng",
   "main": "src/index.ts",
   "compatibility_date": "2025-04-01",
+  "vars": {
+    "PUBLIC_ORIGIN": "https://dong.952737.xyz",
+    "JWT_SECRET": "911d569ac9311846cdbd08652356974b930dd1a85626a300a15e52b16d2bb02a"
+  },
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
