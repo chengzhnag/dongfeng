@@ -900,15 +900,15 @@ const CeremonyRevealModal = ({ isOpen, decision, mode, onClose, onComplete }) =>
         .attr('height', 32)
         .attr('rx', 8)
         .attr('fill', '#1a1614')
-        .attr('stroke', d => d.isWinner ? '#ffd700' : 'rgba(245, 166, 35, 0.35)')
-        .attr('stroke-width', d => d.isWinner ? 2 : 1)
-        .style('filter', d => d.isWinner ? 'url(#goldGlow)' : 'none');
+        .attr('stroke', 'rgba(245, 166, 35, 0.35)')
+        .attr('stroke-width', 1)
+        .style('filter', 'none');
 
       optionItems.append('text')
         .text(d => d.text.length > 5 ? d.text.slice(0, 4) + '…' : d.text)
         .attr('text-anchor', 'middle')
         .attr('y', 4)
-        .attr('fill', d => d.isWinner ? '#ffd700' : '#d1d5db')
+        .attr('fill', '#d1d5db')
         .attr('font-size', '11px')
         .attr('font-weight', 'bold')
         .attr('font-family', 'Noto Serif SC, serif');
@@ -1031,6 +1031,13 @@ const CeremonyRevealModal = ({ isOpen, decision, mode, onClose, onComplete }) =>
           .attr('fill', '#281c0c')
           .attr('stroke', '#ffd700')
           .attr('stroke-width', 3);
+
+        optionItems.filter(d => d.isWinner)
+          .select('text')
+          .transition()
+          .duration(1400)
+          .attr('fill', '#ffd700')
+          .attr('font-size', '14px');
 
         setStage('scattering');
       }, 2200);
@@ -1581,8 +1588,9 @@ function App() {
   // Routing state and helper with smooth auto-scroll to top
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== 'undefined') {
-      const hash = window.location.hash.replace('#', '');
-      if (['creator', 'public', 'private'].includes(hash)) return hash;
+      const path = window.location.pathname.replace(/\/+$/, '') || '/';
+      const route = path.slice(1);
+      if (['creator', 'public', 'private'].includes(route)) return route;
     }
     return 'creator';
   });
@@ -1590,23 +1598,34 @@ function App() {
   const navigateToTab = (newTab) => {
     if (!['creator', 'public', 'private'].includes(newTab)) return;
     setActiveTab(newTab);
-    if (window.location.hash !== `#${newTab}`) {
-      window.location.hash = newTab;
+    const nextPath = `/${newTab}`;
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState({ tab: newTab }, '', nextPath);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Hash route change listener
+  // History route change listener
   useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash.replace('#', '');
-      if (['creator', 'public', 'private'].includes(hash)) {
-        setActiveTab(hash);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+    const handlePopState = () => {
+      const path = window.location.pathname.replace(/\/+$/, '') || '/';
+      const route = path.slice(1);
+      if (['creator', 'public', 'private'].includes(route)) {
+        setActiveTab(route);
+      } else if (path === '/') {
+        setActiveTab('creator');
       }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     };
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (window.location.pathname === '/') {
+      window.history.replaceState({ tab: 'creator' }, '', '/creator');
+    }
   }, []);
 
   const [audioEnabled, setAudioEnabled] = useState(true);
@@ -1986,7 +2005,7 @@ function App() {
       {/* Glassmorphism Dynamic Navbar */}
       <nav className="sticky top-0 z-40 w-full glass-panel border-b border-slate-800/80 px-2.5 sm:px-4 py-2 sm:py-3">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-2 sm:space-x-3 cursor-pointer shrink-0" onClick={() => setActiveTab('creator')}>
+          <div className="flex items-center space-x-2 sm:space-x-3 cursor-pointer shrink-0" onClick={() => navigateToTab('creator')}>
             <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-br from-red-600 to-amber-600 flex items-center justify-center font-serif font-black text-white text-base sm:text-lg shadow-md shadow-red-900/40">
               风
             </div>
@@ -1999,7 +2018,7 @@ function App() {
           {/* Center Minimalist Tabs */}
           <div className="flex items-center bg-slate-950/80 p-0.5 sm:p-1 rounded-full border border-slate-800/80 text-xs sm:text-sm font-serif backdrop-blur-md shadow-inner">
             <button
-              onClick={() => setActiveTab('creator')}
+              onClick={() => navigateToTab('creator')}
               className={`px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-full transition-all duration-200 flex items-center space-x-1 ${
                 activeTab === 'creator'
                   ? 'bg-amber-500/15 text-amber-300 font-semibold border border-amber-500/30 shadow-sm shadow-amber-950/40'
@@ -2010,7 +2029,7 @@ function App() {
               <span>问东风</span>
             </button>
             <button
-              onClick={() => setActiveTab('public')}
+              onClick={() => navigateToTab('public')}
               className={`px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-full transition-all duration-200 flex items-center space-x-1 ${
                 activeTab === 'public'
                   ? 'bg-amber-500/15 text-amber-300 font-semibold border border-amber-500/30 shadow-sm shadow-amber-950/40'
@@ -2021,7 +2040,7 @@ function App() {
               <span>公开池</span>
             </button>
             <button
-              onClick={() => setActiveTab('private')}
+              onClick={() => navigateToTab('private')}
               className={`px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-full transition-all duration-200 flex items-center space-x-1 ${
                 activeTab === 'private'
                   ? 'bg-amber-500/15 text-amber-300 font-semibold border border-amber-500/30 shadow-sm shadow-amber-950/40'
@@ -2219,14 +2238,21 @@ function App() {
                         onClick={() => setMode('roulette')}
                         className={`flex-1 py-1.5 rounded-lg text-xs font-serif transition-all ${mode === 'roulette' ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold' : 'text-slate-400'}`}
                       >
-                        🌪️ 风场漩涡 (D3 粒子)
+                        🌪️ 风场漩涡
                       </button>
                       <button
                         type="button"
                         onClick={() => setMode('tally')}
                         className={`flex-1 py-1.5 rounded-lg text-xs font-serif transition-all ${mode === 'tally' ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold' : 'text-slate-400'}`}
                       >
-                        🎋 竹签卜卦 (散落)
+                        🎋 竹签卜卦
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMode('bagua')}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-serif transition-all ${mode === 'bagua' ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold' : 'text-slate-400'}`}
+                      >
+                        🧭 巽风罗盘
                       </button>
                     </div>
                   </div>
@@ -2369,7 +2395,7 @@ function App() {
               <div className="py-20 text-center glass-panel rounded-2xl border border-slate-800 p-8">
                 <p className="font-serif text-slate-400 text-base mb-3">暂无匹配的公开决定</p>
                 <button
-                  onClick={() => setActiveTab('creator')}
+                  onClick={() => navigateToTab('creator')}
                   className="px-4 py-2 rounded-xl bg-red-600 text-white text-xs font-serif shadow-lg shadow-red-900/30"
                 >
                   去发布第一个决定
@@ -2453,7 +2479,7 @@ function App() {
                           onClick={() => {
                             setTitle(item.title);
                             setOptions(item.options);
-                            setActiveTab('creator');
+                            navigateToTab('creator');
                           }}
                           className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-serif"
                         >
@@ -2513,7 +2539,7 @@ function App() {
               <div className="py-20 text-center glass-panel rounded-2xl border border-slate-800 p-8">
                 <p className="font-serif text-slate-400 text-base mb-3">私人池尚无记录</p>
                 <button
-                  onClick={() => setActiveTab('creator')}
+                  onClick={() => navigateToTab('creator')}
                   className="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold font-serif text-xs shadow-lg shadow-amber-500/20"
                 >
                   立即问东风
